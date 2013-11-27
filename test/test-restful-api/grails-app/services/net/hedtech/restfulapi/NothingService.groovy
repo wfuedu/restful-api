@@ -13,17 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *****************************************************************************/
+package net.hedtech.restfulapi
 
-import net.hedtech.restfulapi.adapters.NothingServiceAdapter
 
-beans = {
-
-    xmlns util: "http://www.springframework.org/schema/util"
-
-    nothingServiceAdapter(NothingServiceAdapter)
-
-    util.map(id: 'restfulApiServiceAdapters', 'map-class':"java.util.HashMap") {
-
-        entry(key: 'nothingService') { ref(bean:'nothingServiceAdapter') }
-    }
-}
+class NothingService extends ThingService { }

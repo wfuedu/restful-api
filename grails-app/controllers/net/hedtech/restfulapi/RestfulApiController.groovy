@@ -37,8 +37,10 @@ import org.codehaus.groovy.grails.web.json.JSONArray
 import org.codehaus.groovy.grails.web.json.JSONElement
 import org.codehaus.groovy.grails.web.json.JSONObject
 
-import org.springframework.dao.OptimisticLockingFailureException
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.InitializingBean
+import org.springframework.dao.OptimisticLockingFailureException
 
 import org.codehaus.groovy.grails.web.converters.configuration.ConvertersConfigurationHolder
 import org.codehaus.groovy.grails.web.converters.configuration.ConverterConfiguration
@@ -69,6 +71,12 @@ class RestfulApiController {
     // may be used to handle all requests.
     //
     static scope = "singleton"
+
+    // FYI We cannot use @Resource here, as this bean is not required.
+    // Consequently, we can't use Map, as Autowired doesn't support.
+    @Autowired(required=false)
+    @Qualifier("restfulApiServiceAdapters")
+    HashMap<String,RestfulServiceAdapter> restfulApiServiceAdapters
 
     private mediaTypeParser = new MediaTypeParser()
 
@@ -739,12 +747,7 @@ class RestfulApiController {
      * @see #getServiceName()
      **/
     protected def getService() {
-        def svc
-        try {
-            svc = applicationContext.getBean(getServiceName())
-        } catch (e) {
-            log.error "Caught exception ${e.message}", e
-        }
+        def svc = getSpringBean( getServiceName() )
         log.trace "getService() will return service $svc"
         if (null == svc) {
             log.warn "No service found for resource ${params.pluralizedResourceName}"
@@ -753,13 +756,9 @@ class RestfulApiController {
         svc
     }
 
+
     protected def getMarshallingService(String name) {
-        def svc
-        try {
-            svc = applicationContext.getBean(name)
-        } catch (e) {
-            log.error "Caught exception ${e.message}", e
-        }
+        def svc = getSpringBean( name, true )
         log.trace "getMarshallingService() will return service $svc"
         svc
     }
@@ -767,25 +766,50 @@ class RestfulApiController {
 
     /**
      * Returns an adapter supporting the service.
-     * This implementation will look for the single adapter that has
-     * been registered within the Spring container.
-     * This adapter will be used when delegating to all services.
+     * This will look for a service-specific adapter configured within the
+     * 'restfulApiServiceAdapters' map (if registered in the Spring container).
+     * Next, the restfulApiServiceAdapters map will be checked to see if an
+     * adapter is registered for 'any' service.
+     * If a service-specific adapter was not found, this method will look for a
+     * 'global' adapter within the Spring container using the name 'restfulServiceAdapter'.
      * If no adapter is found in the Spring container, this
      * implementation will return a built-in pass-through adapter.
      **/
     protected RestfulServiceAdapter getServiceAdapter() {
-        def adapterName = 'restfulServiceAdapter' // name of the single adapter
-        log.trace "Looking for an adapter named $adapterName"
-        RestfulServiceAdapter adapter
-        try {
-            adapter = applicationContext.getBean(adapterName)
-        } catch (e) { // it is not an error if we cannot find an adapter
-            log.trace "Did not find an adapter - ${e.message}"
+
+        // We'll see if there is a service-specific adapter registered...
+        def adapter
+        if (restfulApiServiceAdapters) {
+            adapter = restfulApiServiceAdapters[getServiceName()]
+            // If we didn't find a specific adapter, we'll check for an 'any' adapter
+            if (!adapter) adapter = restfulApiServiceAdapters['any']
         }
 
-        log.trace "getServiceAdapter() will return adapter $adapter"
+        // If we still don't have an adapter from the restfulApiServiceAdapters
+        // map, we'll see if there is a single 'restfulServiceAdapter' registered...
+        if (!adapter) adapter = getSpringBean( 'restfulServiceAdapter' )
+
         adapter = adapter ?: defaultServiceAdapter
+        log.trace "getServiceAdapter() will return adapter $adapter"
         adapter
+    }
+
+
+    protected def getSpringBean( String beanName, boolean required = false ) {
+
+        log.trace "Looking for a Spring bean named $beanName"
+        def bean
+        try {
+            bean = applicationContext.getBean(beanName)
+        } catch (e) { // it is not an error if we cannot find an adapter
+            if (required) {
+                log.error "Did not find a bean named $beanName - ${e.message}", e
+                throw e
+            } else {
+                log.trace "Did not find a bean named $beanName - ${e.message}"
+            }
+        }
+        bean
     }
 
 
