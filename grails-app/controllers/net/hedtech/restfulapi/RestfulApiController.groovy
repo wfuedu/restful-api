@@ -55,6 +55,9 @@ import org.codehaus.groovy.grails.web.servlet.HttpHeaders
 import org.codehaus.groovy.grails.web.servlet.GrailsApplicationAttributes
 import org.apache.commons.logging.LogFactory
 
+import edu.wfu.directory.DirectoryService
+
+
 /**
  * A Restful API controller.
  * This controller delegates to a transactional service
@@ -73,6 +76,12 @@ class RestfulApiController {
     static scope = "singleton"
 
     private mediaTypeParser = new MediaTypeParser()
+
+    def authenticationService
+
+    def directoryService
+
+    def authService
 
     private RestConfig restConfig
 
@@ -679,6 +688,14 @@ class RestfulApiController {
      * @param request the request containing the content
      **/
     protected Map parseRequestContent( request, String resource = params.pluralizedResourceName ) {
+        MultiReadHttpServletRequestWrapper wrapper = new MultiReadHttpServletRequestWrapper(request)
+        String signature = wrapper.getHeader("Signature")
+        String data = wrapper.reader.text
+
+        if(!authService.isDataAuthenticated(data,signature)){
+            log.warn "Signature appears to be not valid: " + signature
+            unauthorizedRequest()
+        }
 
         ResourceConfig resourceConfig = getResourceConfig( resource )
         def representation = getRequestRepresentation( resource )
@@ -687,7 +704,7 @@ class RestfulApiController {
         if (!extractor) {
             unsupportedRequestRepresentation()
         }
-        getExtractorAdapter().extract(extractor, request)
+        getExtractorAdapter().extract(extractor, wrapper)
     }
 
 
@@ -961,6 +978,10 @@ class RestfulApiController {
 
     private unsupportedRequestRepresentation() {
         throw new UnsupportedRequestRepresentationException( params.pluralizedResourceName, request.getHeader(HttpHeaders.CONTENT_TYPE ) )
+    }
+
+    private unauthorizedRequest() {
+        throw new UnauthorizedRequestException( request.getHeader('signature') )
     }
 
 
