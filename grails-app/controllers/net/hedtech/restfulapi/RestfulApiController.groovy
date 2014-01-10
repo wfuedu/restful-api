@@ -55,7 +55,7 @@ import org.codehaus.groovy.grails.web.servlet.HttpHeaders
 import org.codehaus.groovy.grails.web.servlet.GrailsApplicationAttributes
 import org.apache.commons.logging.LogFactory
 
-import edu.wfu.directory.DirectoryService
+import edu.wfu.core.security.ws.MultiReadHttpServletRequestWrapper
 
 
 /**
@@ -78,10 +78,6 @@ class RestfulApiController {
     private mediaTypeParser = new MediaTypeParser()
 
     def authenticationService
-
-    def directoryService
-
-    def authService
 
     private RestConfig restConfig
 
@@ -689,11 +685,10 @@ class RestfulApiController {
      **/
     protected Map parseRequestContent( request, String resource = params.pluralizedResourceName ) {
         MultiReadHttpServletRequestWrapper wrapper = new MultiReadHttpServletRequestWrapper(request)
-        String signature = wrapper.getHeader("Signature")
-        String data = wrapper.reader.text
 
-        if(!authService.isDataAuthenticated(data,signature)){
-            log.warn "Signature appears to be not valid: " + signature
+        // reject the request if not authorized
+        if(!authenticationService.isRequestAuthorized(wrapper)){
+            log.warn "Request rejected!"
             unauthorizedRequest()
         }
 
