@@ -259,6 +259,13 @@ class RestfulApiController {
     //
     public def show() {
         log.trace "show() invoked for ${params.pluralizedResourceName}/${params.id}"
+
+        // reject the request if not authorized
+        if(!authenticationService.isRequestAuthorized(request)){
+            log.warn "Request rejected!"
+            unauthorizedRequest()
+        }
+
         try {
             checkMethod( Methods.SHOW )
             def responseRepresentation = getResponseRepresentation()
